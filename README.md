@@ -17,6 +17,7 @@ The rest of the repository contains the scripts to generate the tables and figur
 Leon Schwartz: legepaschwartz@gmail.com
 
 ### CyTOF: 
-Lis Arend, PhD Student at DaisyBio: lis.arend@tum.de
-Judith Bernett, PhD Student at DaisyBio: judith.bernett@tum.de
-Quirin Manz, PhD Student at DaisyBio: quirin.manz@tum.de
+
+* Lis Arend, PhD Student at DaisyBio: lis.arend@tum.de
+* Judith Bernett, PhD Student at DaisyBio: judith.bernett@tum.de
+* Quirin Manz, PhD Student at DaisyBio: quirin.manz@tum.de
