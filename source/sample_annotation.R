@@ -4,10 +4,6 @@ library(stringr)
 library(readxl)
 library(data.table)
 
-
-#setwd("D:/Uni/Hiwi_ExBioLab/Rechts-der-Isar/Material/analyses_in_R/CCSonly_withoutSample6_filtered_restructured")
-
-
 get_sample_annotation <- function(picked_disease = "all", remove_samples = c()){
   
   combine_sample_annotation <- function(){
@@ -83,6 +79,7 @@ get_sample_annotation <- function(picked_disease = "all", remove_samples = c()){
     
     sample_annotation <- sample_annotation %>%
       separate(sample_name, c("sample_number", "type"), "_")
+    sample_annotation <- as.data.table(sample_annotation)
     sample_annotation <- sample_annotation[order(sample_number, RPs_MPs),]
     sample_annotation$sample_name <- paste0(sample_annotation$sample_number, "_", sample_annotation$type)
     sample_annotation <- sample_annotation[, type := NULL]

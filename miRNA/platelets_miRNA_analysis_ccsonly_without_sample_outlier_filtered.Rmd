@@ -17,13 +17,11 @@ Data were processed with the nf-core small RNA-seq pipeline https://github.com/n
 - only significant genes: results/ccs_rp_vs_mp_sign_diff_mir_counts.xlsx
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE}
-setwd("D:/Uni/Hiwi_ExBioLab/Rechts-der-Isar/Material/analyses_in_R/CCSonly_withoutSample6_filtered_restructured")
 source("../source/create_plots.R")
 library(DESeq2)
 library(ggplot2)
 library(ggrepel)
 library(viridis)
-library(xlsx)
 library(RColorBrewer)
 library(dplyr)
 library(pheatmap)
@@ -163,12 +161,12 @@ plot
 
 In the CCS samples, there are no significant differentially expressed miRNAs in RPs vs MPs for |log2FoldChange| > 0.5 and padj < 0.1.
 ```{r, warning=FALSE, message= FALSE}
-write.xlsx2(dds_ccs_results, paste0("results/ccs_rp_vs_mp_diff_mir_counts", version, ".xlsx"))
+#write.xlsx2(dds_ccs_results, paste0("results/ccs_rp_vs_mp_diff_mir_counts", version, ".xlsx"))
 dds_ccs_sign_results <- dds_ccs_results %>% 
   tibble::rownames_to_column() %>% 
   filter(abs(log2FoldChange) > FCcutoff, padj < pCutoff) %>%
   arrange(padj)
-write.xlsx2(dds_ccs_sign_results, paste0("results/ccs_rp_vs_mp_sign_diff_mir_counts", version, ".xlsx"), row.names = F)
+#write.xlsx2(dds_ccs_sign_results, paste0("results/ccs_rp_vs_mp_sign_diff_mir_counts", version, ".xlsx"), row.names = F)
 DT::datatable(dds_ccs_sign_results)
 ```
 

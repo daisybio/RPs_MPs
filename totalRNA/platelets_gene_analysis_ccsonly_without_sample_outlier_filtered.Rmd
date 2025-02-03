@@ -20,8 +20,7 @@ Data were processed with the nf-core RNA-seq pipeline https://github.com/nf-core
 
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE}
-setwd("D:/Uni/Hiwi_ExBioLab/Rechts-der-Isar/Material/analyses_in_R/CCSonly_withoutSample6_filtered_restructured")
-source("source/create_plots.R")
+source("../source/create_plots.R")
 library(DESeq2)
 library(data.table)
 library(pheatmap)
@@ -30,7 +29,7 @@ library(ggpubr)
 library(RColorBrewer)
 library(ggrepel)
 library(viridis)
-library(xlsx)
+#library(xlsx)
 library(dplyr)
 library(webshot)
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
@@ -48,7 +47,7 @@ write_tables = FALSE
 
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE}
-source("source/sample_annotation.R")
+source("../source/sample_annotation.R")
 metadata_ccs <- get_sample_annotation(picked_disease = "CCS", remove_samples = c("6_RPs", "6_MPs"))
 if(write_tables){
   write.table(metadata_ccs, paste0("../data/sample_annotation/processed_metadata_ccs_only", version, ".csv"), sep = ";", quote = FALSE, row.names = FALSE)
@@ -65,7 +64,7 @@ plot
 
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE}
-source("source/process_input.R")
+source("../source/process_input.R")
 counts_data <- get_raw_gene_counts(metadata_ccs)
 counts_ccs <- counts_data$counts
 id2symbol <- counts_data$id2symbol
@@ -161,10 +160,10 @@ ggsave(plot = biotype_barplot_postfilter, path ='plots',
 ggsave(plot = biotype_barplot_postfilter, path ='plots/pdf', 
        filename = paste0("CCS_only_biotypeAnalysis_postfilterplot", version, ".pdf"),
        width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
-gtsave(biotype_table_postfilter, path = ('plots'), 
-       filename = paste0("CCS_only_biotypeAnalysis_postfiltertable", version, ".png"))
-gtsave(biotype_table_postfilter, path = ('plots/pdf'), 
-       filename = paste0("CCS_only_biotypeAnalysis_postfiltertable", version, ".pdf"), zoom = 1)
+#gtsave(biotype_table_postfilter, path = ('plots'), 
+#       filename = paste0("CCS_only_biotypeAnalysis_postfiltertable", version, ".png"))
+#gtsave(biotype_table_postfilter, path = ('plots/pdf'), 
+#       filename = paste0("CCS_only_biotypeAnalysis_postfiltertable", version, ".pdf"), zoom = 1)
 rm(biotype_barplot_postfilter, biotype_table_postfilter)
 
 
@@ -178,10 +177,10 @@ ggsave(plot = biotype_barplot_postnormalization, path ='plots',
 ggsave(plot = biotype_barplot_postnormalization, path ='plots/pdf', 
        filename = paste0("CCS_only_biotypeAnalysis_postnormalizationplot", version, ".pdf"),
        width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
-gtsave(biotype_table_postnormalization, path = ('plots'), 
-       filename = paste0("CCS_only_biotypeAnalysis_postnormalizantiontable", version, ".png"))
-gtsave(biotype_table_postnormalization, path = ('plots/pdf'), 
-       filename = paste0("CCS_only_biotypeAnalysis_postnormalizationtable", version, ".pdf"), zoom = 1)
+#gtsave(biotype_table_postnormalization, path = ('plots'), 
+#       filename = paste0("CCS_only_biotypeAnalysis_postnormalizantiontable", version, ".png"))
+#gtsave(biotype_table_postnormalization, path = ('plots/pdf'), 
+#       filename = paste0("CCS_only_biotypeAnalysis_postnormalizationtable", version, ".pdf"), zoom = 1)
 ```
 
 
@@ -216,7 +215,7 @@ rownames(dds_ccs_results) <- dds_ccs_results$Row.names
 dds_ccs_results <- dds_ccs_results[,c("hgnc_symbol", "baseMean", "log2FoldChange", "lfcSE", "stat", "pvalue", "padj", "gene_biotype")]
 dds_ccs_results <- dds_ccs_results[order(dds_ccs_results[,'padj']),]
 
-write.xlsx2(dds_ccs_results, paste0("results/ccs_rp_vs_mp_diff_gene_counts", version, ".xlsx"))
+#write.xlsx2(dds_ccs_results, paste0("results/ccs_rp_vs_mp_diff_gene_counts", version, ".xlsx"))
 DT::datatable(dds_ccs_results)
 ```
 
@@ -382,7 +381,7 @@ dds_ccs_sign_results <- dds_ccs_results %>%
   tibble::rownames_to_column() %>% 
   filter(abs(log2FoldChange) > FCcutoff, padj < pCutoff) %>%
   arrange(padj)
-write.xlsx2(dds_ccs_sign_results, paste0("results/ccs_rp_vs_mp_sign_diff_padj_", pCutoff, "_gene_counts", version, ".xlsx"), row.names = F)
+#write.xlsx2(dds_ccs_sign_results, paste0("results/ccs_rp_vs_mp_sign_diff_padj_", pCutoff, "_gene_counts", version, ".xlsx"), row.names = F)
 DT::datatable(dds_ccs_sign_results)
 ```
 

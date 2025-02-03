@@ -2,9 +2,16 @@ library(biomaRt)
 library(data.table)
 library(readr)
 library(dplyr)
+# for new R versions
+# url <- "https://cran.r-project.org/src/contrib/Archive/assertive.base/assertive.base_0.0-9.tar.gz"
+# pkgFile <- "assertive.base_0.0-9.tar.gz"
+# download.file(url = url, destfile = pkgFile)
+# install.packages(pkgs=pkgFile, type="source", repos=NULL)
+# url <- "https://cran.r-project.org/src/contrib/Archive/assertive.sets/assertive.sets_0.0-3.tar.gz"
+# pkgFile <- "assertive.sets_0.0-3.tar.gz"
+# download.file(url = url, destfile = pkgFile)
+# install.packages(pkgs=pkgFile, type="source", repos=NULL)
 library(isomiRs)
-
-#setwd("D:/Uni/Hiwi_ExBioLab/Rechts-der-Isar/Material/analyses_in_R/CCSonly_withoutSample6_filtered_restructured")
 
 
 get_raw_gene_counts <- function(metadata){

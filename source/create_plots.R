@@ -7,12 +7,13 @@ library(scales)
 library(ggnewscale)
 library(gt)
 library(gtExtras)
+library(data.table)
 
 get_specified_colors <- function(){
-  return(List("col_upregulated" = "#B31B21",
+  return(as.list(c("col_upregulated" = "#B31B21",
               "col_downregulated" = "#0B589C",
               "col_mps" = "blue2",
-              "col_rps" = "red3"))
+              "col_rps" = "red3")))
 }
 
 
@@ -84,7 +85,7 @@ myCountAnalysisPlot <- function(counts, data_type, plot_title){
   mySampleCountBoxplots <- function(counts){
     cols <- get_specified_colors()
     
-    counts_temp <- copy(counts)
+    counts_temp <- data.table::copy(counts)
     counts_long <- melt(setDT(counts_temp, keep.rownames = TRUE), "rn")
     rm(counts_temp)
     
