@@ -465,6 +465,7 @@ myGObarplot <- function(panther_result_up, panther_result_down, count_threshold,
           slice_max(abs(fold_enrichment), n = num_tops)
         
         if(nrow(panther_result_subset) > num_tops){
+          panther_result_subset <- as.data.table(panther_result_subset)
           temp <- panther_result_subset[go_term %like% paste0(gos_of_interest, collapse = "|"), ]
           panther_result_subset <- panther_result_subset[!go_term %in% temp$go_term, ] %>%
             slice_max(abs(fold_enrichment), n = num_tops-nrow(temp)) %>%
@@ -549,6 +550,7 @@ myGObarplot <- function(panther_result_up, panther_result_down, count_threshold,
                                         fdr_threshold = fdr_threshold,
                                         gos_of_interest = gos_of_interest,
                                         num_tops = num_tops)
+    panther_result <- as.data.table(panther_result)
 
     plots <- List()
     mp_limit <- c(min(panther_result[enriched_platelet == "MPs", mp_score]),

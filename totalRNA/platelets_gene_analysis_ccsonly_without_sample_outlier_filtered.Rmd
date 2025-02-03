@@ -359,7 +359,6 @@ Below we list the significant differentially expressed genes between RPs and MPs
 ```{r, warning=FALSE, message= FALSE}
 FCcutoff <- 1
 pCutoff <- 0.1
-
 write.table(rownames(dds_ccs_results), paste0("../data/GO_analysis/reference_genes_ccs_only", version, ".txt"),
             sep = ",", quote = FALSE, row.names = FALSE, col.names = FALSE)
 
@@ -511,15 +510,15 @@ The following interactive plot shows the classes of genes that are over-represen
 
 ```{r warning=FALSE, message=FALSE}
 #test
-padj <- padj_threshold <- 0.01
-count <- count_threshold <- 5
-fdr <- fdr_threshold <- 0.2
+padj <- padj_thresholds <- 0.01
+count <- count_thresholds <- 5
+fdr <- fdr_thresholds <- 0.2
 
 
 gos_of_interest <- c("platelet", "hemostasis", "coagulation")
-padj_thresholds <- c(0.1, 0.01, 0.05, 1e-15)
-count_thresholds <- c(2, 5, 10, 12, 15, 20)
-fdr_thresholds <- c(0.01, 0.05, 0.1, 0.2, 0.5, 0.75, 1)
+#padj_thresholds <- c(0.1, 0.01, 0.05, 1e-15)
+#count_thresholds <- c(2, 5, 10, 12, 15, 20)
+#fdr_thresholds <- c(0.01, 0.05, 0.1, 0.2, 0.5, 0.75, 1)
 
 for(padj in padj_thresholds){
   panther_result_up_ref <- fread(paste0("../data/GO_analysis/padj", padj, 
@@ -534,6 +533,7 @@ for(padj in padj_thresholds){
   
   for(count in count_thresholds){
     for(fdr in fdr_thresholds){
+      print(paste0("padj", padj, "_count", count, "_fdr", fdr))
       plot_ref <- myGObarplot(panther_result_up = panther_result_up_ref, 
                               panther_result_down = panther_result_down_ref, 
                               count_threshold = count, 
