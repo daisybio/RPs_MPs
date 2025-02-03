@@ -21,7 +21,7 @@ Data were processed with the nf-core RNA-seq pipeline https://github.com/nf-core
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE}
 setwd("D:/Uni/Hiwi_ExBioLab/Rechts-der-Isar/Material/analyses_in_R/CCSonly_withoutSample6_filtered_restructured")
-source("create_plots.R")
+source("source/create_plots.R")
 library(DESeq2)
 library(data.table)
 library(pheatmap)
@@ -48,7 +48,7 @@ write_tables = FALSE
 
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE}
-source("sample_annotation.R")
+source("source/sample_annotation.R")
 metadata_ccs <- get_sample_annotation(picked_disease = "CCS", remove_samples = c("6_RPs", "6_MPs"))
 if(write_tables){
   write.table(metadata_ccs, paste0("../data/sample_annotation/processed_metadata_ccs_only", version, ".csv"), sep = ";", quote = FALSE, row.names = FALSE)
@@ -65,7 +65,7 @@ plot
 
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE}
-source("process_input.R")
+source("source/process_input.R")
 counts_data <- get_raw_gene_counts(metadata_ccs)
 counts_ccs <- counts_data$counts
 id2symbol <- counts_data$id2symbol

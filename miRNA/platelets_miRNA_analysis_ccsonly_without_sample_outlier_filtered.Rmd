@@ -18,7 +18,7 @@ Data were processed with the nf-core small RNA-seq pipeline https://github.com/n
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE}
 setwd("D:/Uni/Hiwi_ExBioLab/Rechts-der-Isar/Material/analyses_in_R/CCSonly_withoutSample6_filtered_restructured")
-source("source/create_plots.R")
+source("../source/create_plots.R")
 library(DESeq2)
 library(ggplot2)
 library(ggrepel)
