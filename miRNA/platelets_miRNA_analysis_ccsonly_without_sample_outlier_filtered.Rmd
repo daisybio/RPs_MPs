@@ -1,0 +1,193 @@
+---
+title: "Plateletes miRNA analysis"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+Data were processed with the nf-core small RNA-seq pipeline https://github.com/nf-core/smrnaseq which includes mirtop https://doi.org/10.1093/bioinformatics/btz675 to generate output in mirGFF3 format. Further analysis was performed using the R packages isoMiR, DEseq2 and ggplot2.
+
+**Differential expression analysis overview:**
+
+[RPs vs MPs - CCS only](#RPsMPs_CCS)
+- design = ~ patient + RPs.MPs (DE between RPs/MPs with paired patients)
+- data: 40 CCS samples
+- DE statistics for all genes: results/ccs_rp_vs_mp_diff_mir_counts.xlsx
+- only significant genes: results/ccs_rp_vs_mp_sign_diff_mir_counts.xlsx
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+source("../source/create_plots.R")
+library(DESeq2)
+library(ggplot2)
+library(ggrepel)
+library(viridis)
+library(RColorBrewer)
+library(dplyr)
+library(pheatmap)
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+plot_width = 8.2
+plot_height = 5.8
+plot_res = 300
+version <- "_noSample6_filtered_pCutoff0.05"
+preplot_title <- "Before filtering"
+post_filter_title <- "miRNAs expressed with at least 10 counts in at least 20% of samples"
+post_normalization_title <- "After normalization with DESeq2"
+
+fdr = 0.1
+pCutoff = 0.05
+FCcutoff = 0.5
+```
+
+
+
+```{r, echo = FALSE, warning=FALSE, message= FALSE}
+source("../source/sample_annotation.R")
+metadata_ccs <- get_sample_annotation(picked_disease = "CCS", remove_samples = c("6_RPs", "6_MPs"))
+
+
+source("../source/process_input.R")
+counts_ccs <- get_mirtop_mirna_counts(metadata_ccs)
+
+pre_plot <- myCountAnalysisPlot(counts_ccs, "miRNA", preplot_title)
+pre_plot
+```
+
+
+
+```{r, echo = FALSE, warning=FALSE, message= FALSE}
+# pre-filtering of rows having less than 10 counts in total as suggested by DESeq2
+expressed_samples <- data.frame(apply(counts_ccs, 1, function(x) sum(x != "0")))
+colnames(expressed_samples) <- "count_expressed_samples"
+expressed_samples$gene <- rownames(expressed_samples)
+counts_ccs <- counts_ccs[rownames(counts_ccs) %in% rownames(expressed_samples[expressed_samples$count_expressed_samples >= ncol(counts_ccs)*0.2,]) & rowSums(counts_ccs) >= 10,]
+rm(expressed_samples)
+
+postfilterplot <- myCountAnalysisPlot(counts_ccs, "miRNA", post_filter_title)
+postfilterplot
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+dds_ccs <- DESeqDataSetFromMatrix(countData = counts_ccs,
+                              colData = metadata_ccs,
+                              design = ~ patient + RPs_MPs)
+dds_ccs <- DESeq(dds_ccs)
+dds_ccs_results <- as.data.frame(results(dds_ccs, contrast=c("RPs_MPs","RPs","MPs")))
+dds_ccs_counts <- as.data.frame(counts(dds_ccs, norm = TRUE))
+rm(counts_ccs)
+
+postnormalizationplot <- myCountAnalysisPlot(dds_ccs_counts, "miRNA", post_normalization_title)
+postnormalizationplot
+
+
+plot <- ggarrange(pre_plot, postfilterplot, postnormalizationplot, labels = c("A", "B", "C"), ncol = 3, nrow = 1)
+ggsave(path ='plots/pdf', filename = paste0("CCS_only_expressionAnalysis", version, ".pdf"),
+       width = plot_width * 3, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+ggsave(path ='plots/png', filename = paste0("CCS_only_expressionAnalysis", version, ".png"),
+       width = plot_width * 3, height = plot_height, dpi = plot_res, units = "in", device='png')
+plot
+rm(plot, pre_plot, postfilterplot, postnormalizationplot)
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+num_top = 15
+plot <- myTopmiRNABarplot(dds_ccs_counts, num_top)
+ggsave(path ='plots/pdf', filename = paste0("All_top", num_top, "_most_expressed_mirnas", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+ggsave(path ='plots/png', filename = paste0("All_top", num_top, "_most_expressed_mirnas", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+plot
+```
+
+
+# RPs vs MPs - CCS only {#RPsMPs_CCS}
+
+Finally, we repeat the differential gene expression analysis for CCS patients only, as the sample quality is expected to be higher here.
+
+
+```{r, warning=FALSE, message= FALSE}
+dds_ccs_counts <- as.matrix(dds_ccs_counts)
+plot <- pheatmap(dds_ccs_counts[which(rowVars(dds_ccs_counts) > 0.1),], 
+                 fontsize_col = 7,
+                 color = colorRampPalette(c("navy", "red"))(50),
+                 border_color = NA,
+                 annotation_colors = list(`Platelet type` = c(RPs = cbbPalette[1], MPs = cbbPalette[4])),
+                 annotation_col = metadata_ccs %>% dplyr::select(`Platelet type` = RPs_MPs),
+                 show_rownames = FALSE, 
+                 show_colnames = TRUE, 
+                 scale="row")
+
+png(paste0("plots/CCS_only_heatmap", version, ".png"), width = plot_width, height = plot_height, units = "in", res = plot_res)
+plot
+invisible(dev.off())
+plot
+```
+
+```{r, warning=FALSE, message= FALSE}
+plot <- myMAplot(dds_ccs_results, fdr = fdr, fc = FCcutoff)
+
+png(paste0("plots/CCS_only_ma", version, ".png"), width = plot_width, height = plot_height, units = "in", res = plot_res)
+plot
+invisible(dev.off())
+plot
+```
+
+
+PCA of CCS patients colored by MPs/RPs and labeled by sample:
+```{r, warning=FALSE, message= FALSE}
+plot <- myPCAplot(rlog(dds_ccs), intgroup = c("RPs_MPs")) + 
+          geom_label_repel(aes(label=sample_name), size = 2, show.legend = FALSE)
+
+png(paste0("plots/CCS_only_pcs_RPvsMP", version, ".png"), width = plot_width, height = plot_height, units = "in", res = plot_res)
+plot
+invisible(dev.off())
+plot
+```
+
+
+PCA of CCS patients colored by patient and labeled by MPs/RPs. The variance seems to be stronger between patients than between MPs/RPs.
+```{r, warning=FALSE, message= FALSE}
+plot <- myPCAplot(rlog(dds_ccs), intgroup = c("patient")) + 
+          geom_label_repel(aes(label=`RPs_MPs`), size = 2) + theme(legend.position="none")
+
+png(paste0("plots/CCS_only_pca_patients", version, ".png"), width = plot_width, height = plot_height, units = "in", res = plot_res)
+plot
+invisible(dev.off())
+plot
+```
+
+In the CCS samples, there are no significant differentially expressed miRNAs in RPs vs MPs for |log2FoldChange| > 0.5 and padj < 0.1.
+```{r, warning=FALSE, message= FALSE}
+#write.xlsx2(dds_ccs_results, paste0("results/ccs_rp_vs_mp_diff_mir_counts", version, ".xlsx"))
+dds_ccs_sign_results <- dds_ccs_results %>% 
+  tibble::rownames_to_column() %>% 
+  filter(abs(log2FoldChange) > FCcutoff, padj < pCutoff) %>%
+  arrange(padj)
+#write.xlsx2(dds_ccs_sign_results, paste0("results/ccs_rp_vs_mp_sign_diff_mir_counts", version, ".xlsx"), row.names = F)
+DT::datatable(dds_ccs_sign_results)
+```
+
+Volcano plot using a p-adjusted cutoff of 0.01 and a log2 FC cutoff of +-0.5.
+
+```{r, warning=FALSE, message= FALSE}
+plot <- myVolcanoPlot(dds_ccs_results,
+                      data_type = "miRNA",
+                      pCutoff = pCutoff,
+                      FCcutoff = FCcutoff,
+                      xlim = c(-1, 1),
+                      ylim = c(0, 3))
+
+png(paste0("plots/CCS_only_volcano", version, ".png"), width = plot_width, height = plot_height, units = "in", res = plot_res)
+plot
+invisible(dev.off())
+plot
+```
+
+
+# R session
+```{r}
+sessionInfo()
+```

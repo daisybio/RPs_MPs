@@ -1,0 +1,567 @@
+---
+title: "Platelets gene analysis"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+
+Data were processed with the nf-core RNA-seq pipeline https://github.com/nf-core/rnaseq which includes STAR and salmon. Further analysis was performed using the R package DEseq2.
+
+**Differential expression analysis overview:**
+
+[RPs vs MPs - CCS only](#RPsMPs_CCS)
+- design = ~ RPs.MPs + patient (DE between RPs/MPs with paired patients)
+- data: 38 CCS samples
+- DE statistics for all genes: results/ccs_rp_vs_mp_diff_gene_counts.xlsx
+- only significant genes: results/ccs_rp_vs_mp_sign_diff_gene_counts.xlsx
+- gene set enrichment: results/ccs_rp_vs_mp_sign_gene_set_enrichment.xlsx
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+source("../source/create_plots.R")
+library(DESeq2)
+library(data.table)
+library(pheatmap)
+library(ggplot2)
+library(ggpubr)
+library(RColorBrewer)
+library(ggrepel)
+library(viridis)
+#library(xlsx)
+library(dplyr)
+library(webshot)
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+plot_width = 8.2
+plot_height = 5.8
+plot_res = 300
+version <- "_noSample6_filtered"
+preplot_title <- "Before filtering"
+post_filter_title <- "Genes expressed with at least 10 counts in at least 20% of samples"
+post_normalization_title <- "After normalization with DESeq2"
+write_tables = FALSE
+```
+
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+source("../source/sample_annotation.R")
+metadata_ccs <- get_sample_annotation(picked_disease = "CCS", remove_samples = c("6_RPs", "6_MPs"))
+if(write_tables){
+  write.table(metadata_ccs, paste0("../data/sample_annotation/processed_metadata_ccs_only", version, ".csv"), sep = ";", quote = FALSE, row.names = FALSE)
+}
+#metadata_ccs <- read.csv(paste0("../data/gene_counts/processed_metadata_ccs_only", version, ".csv"), sep = ";")
+
+plot <- myAgeDistrubutionPlot(metadata_ccs)
+ggsave(plot = plot, path ='plots', filename = paste0("age_distribution", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot, path ='plots/pdf', filename = paste0("age_distribution", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+plot
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+source("../source/process_input.R")
+counts_data <- get_raw_gene_counts(metadata_ccs)
+counts_ccs <- counts_data$counts
+id2symbol <- counts_data$id2symbol
+rm(counts_data)
+if(write_tables){
+  write.table(counts_ccs, paste0("./processed_raw_counts_ccs_only", version, ".csv"), sep = ";", quote = FALSE, row.names = FALSE)
+}
+#counts_ccs <- read.csv(paste0("../data/gene_counts/processed_raw_counts_ccs_only", version, ".csv"), sep = ";")
+#colnames(counts_ccs) <- gsub("X", "", colnames(counts_ccs))
+
+pre_plot <- myCountAnalysisPlot(counts_ccs, "gene", preplot_title)
+pre_plot
+```
+
+
+```{r, echo=FALSE, message= FALSE, warning=FALSE}
+# pre-filtering of rows having less than 10 counts in total as suggested by DESeq2
+expressed_samples <- data.frame(apply(counts_ccs, 1, function(x) sum(x != "0")))
+colnames(expressed_samples) <- "count_expressed_samples"
+expressed_samples$gene <- rownames(expressed_samples)
+counts_ccs <- counts_ccs[rownames(counts_ccs) %in% rownames(expressed_samples[expressed_samples$count_expressed_samples >= ncol(counts_ccs)*0.2 ,]) & rowSums(counts_ccs) >= 10,]
+rm(expressed_samples)
+
+postfilterplot <- myCountAnalysisPlot(counts_ccs, "gene", post_filter_title)
+postfilterplot
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+dds_ccs <- DESeqDataSetFromMatrix(countData = counts_ccs,
+                                             colData = metadata_ccs,
+                                             design = ~ patient + RPs_MPs)
+dds_ccs <- DESeq(dds_ccs)
+dds_ccs_counts <- counts(dds_ccs, norm = TRUE)
+dds_ccs_results <- data.frame(results(dds_ccs, contrast=c("RPs_MPs","RPs","MPs")))
+
+postnormalizationplot <- myCountAnalysisPlot(as.data.frame(dds_ccs_counts), "gene",
+                                             post_normalization_title)
+postnormalizationplot
+
+
+plot <- ggarrange(pre_plot, postfilterplot, postnormalizationplot, labels = c("A", "B", "C"), ncol = 3, nrow = 1)
+rm(pre_plot, postfilterplot, postnormalizationplot)
+ggsave(plot = plot, path ='plots', filename = paste0("CCS_only_expressionAnalysis", version, ".png"),
+       width = plot_width * 3, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot, path ='plots/pdf', filename = paste0("CCS_only_expressionAnalysis", version, ".pdf"),
+       width = plot_width * 3, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+plot
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+remove_padj_na_recursive <- FALSE
+remove_padj_na <- TRUE
+
+if(remove_padj_na_recursive){
+  genes_with_na_padj <- rownames(dds_ccs_results[is.na(dds_ccs_results$padj),])
+  while(length(genes_with_na_padj) != 0){
+    dds_ccs <- dds_ccs[which(!rownames(dds_ccs) %in% genes_with_na_padj), ]
+    dds_ccs_counts <- counts(dds_ccs, norm = TRUE)
+    dds_ccs_results <- data.frame(results(dds_ccs, contrast=c("RPs_MPs","RPs","MPs")))
+    genes_with_na_padj <- rownames(dds_ccs_results[is.na(dds_ccs_results$padj),])
+  }
+  
+  postnormalizationfilterplot <- myCountAnalysisPlot(as.data.frame(dds_ccs_counts), "gene", 
+                                                     "After removing genes with padj is NA labeled by DESeq2")
+  ggsave(plot = postnormalizationfilterplot, path ='plots', 
+         filename = paste0("CCS_only_expressionAnalysis_postnormalizationfilterplot", version, ".png"),
+         width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+  ggsave(plot = postnormalizationfilterplot, path ='plots/pdf', 
+         filename = paste0("CCS_only_expressionAnalysis_postnormalizationfilterplot", version, ".pdf"),
+         width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+  postnormalizationfilterplot
+} else if(remove_padj_na) {
+    genes_with_na_padj <- rownames(dds_ccs_results[is.na(dds_ccs_results$padj),])
+    dds_ccs <- dds_ccs[which(!rownames(dds_ccs) %in% genes_with_na_padj), ]
+    dds_ccs_counts <- dds_ccs_counts[which(!rownames(dds_ccs_counts) %in% genes_with_na_padj), ]
+    dds_ccs_results <- dds_ccs_results[which(!rownames(dds_ccs_results) %in% genes_with_na_padj), ]
+} else {
+  cat("No manual removal of genes with padj = NA done")
+}
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+postfilter_biotypedata <- myBiotypeBarplot(counts_ccs, paste0("CCS only - ", post_filter_title))
+biotype_barplot_postfilter <- postfilter_biotypedata$biotype_plot
+biotype_table_postfilter <- postfilter_biotypedata$biotype_table
+rm(postfilter_biotypedata)
+ggsave(plot = biotype_barplot_postfilter, path ='plots', 
+       filename = paste0("CCS_only_biotypeAnalysis_postfilterplot", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = biotype_barplot_postfilter, path ='plots/pdf', 
+       filename = paste0("CCS_only_biotypeAnalysis_postfilterplot", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+#gtsave(biotype_table_postfilter, path = ('plots'), 
+#       filename = paste0("CCS_only_biotypeAnalysis_postfiltertable", version, ".png"))
+#gtsave(biotype_table_postfilter, path = ('plots/pdf'), 
+#       filename = paste0("CCS_only_biotypeAnalysis_postfiltertable", version, ".pdf"), zoom = 1)
+rm(biotype_barplot_postfilter, biotype_table_postfilter)
+
+
+postnormalization_biotypedata <- myBiotypeBarplot(as.data.frame(dds_ccs_counts), paste0("CCS only - ", post_normalization_title))
+biotype_barplot_postnormalization <- postnormalization_biotypedata$biotype_plot
+biotype_table_postnormalization <- postnormalization_biotypedata$biotype_table
+rm(postfilter_biotypedata)
+ggsave(plot = biotype_barplot_postnormalization, path ='plots', 
+       filename = paste0("CCS_only_biotypeAnalysis_postnormalizationplot", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = biotype_barplot_postnormalization, path ='plots/pdf', 
+       filename = paste0("CCS_only_biotypeAnalysis_postnormalizationplot", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+#gtsave(biotype_table_postnormalization, path = ('plots'), 
+#       filename = paste0("CCS_only_biotypeAnalysis_postnormalizantiontable", version, ".png"))
+#gtsave(biotype_table_postnormalization, path = ('plots/pdf'), 
+#       filename = paste0("CCS_only_biotypeAnalysis_postnormalizationtable", version, ".pdf"), zoom = 1)
+```
+
+
+
+```{r, warning=FALSE, message= FALSE}
+threshold <- sort(rowVars(dds_ccs_counts), decreasing = T)[150]
+dds_ccs_top = dds_ccs_counts[which(rowVars(dds_ccs_counts) >= threshold),]
+plot <- pheatmap(dds_ccs_top, 
+                 fontsize_col = 7,
+                 color = colorRampPalette(c("blue", "red"))(50),
+                 border_color = NA,
+                 annotation_colors = list(`Platelet type` = c(RPs = cbbPalette[1], MPs = cbbPalette[4])),
+                 annotation_col = metadata_ccs %>% dplyr::select(`Platelet type` = RPs_MPs),
+                 show_rownames = FALSE,
+                 show_colnames = TRUE,
+                 scale="row")
+rm(threshold, dds_ccs_top)
+
+ggsave(plot = plot, path ='plots', filename = paste0("CCS_only_heatmap_top150", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot, path ='plots/pdf', filename = paste0("CCS_only_heatmap_top150", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+plot
+```
+
+
+
+```{r warning=FALSE, message= FALSE}
+dds_ccs_results <- as.data.frame(dds_ccs_results)
+dds_ccs_results <- merge(dds_ccs_results, id2symbol, by.x = 0, by.y = 'ensg')
+rownames(dds_ccs_results) <- dds_ccs_results$Row.names
+dds_ccs_results <- dds_ccs_results[,c("hgnc_symbol", "baseMean", "log2FoldChange", "lfcSE", "stat", "pvalue", "padj", "gene_biotype")]
+dds_ccs_results <- dds_ccs_results[order(dds_ccs_results[,'padj']),]
+
+#write.xlsx2(dds_ccs_results, paste0("results/ccs_rp_vs_mp_diff_gene_counts", version, ".xlsx"))
+DT::datatable(dds_ccs_results)
+```
+
+
+```{r, warning=FALSE, message= FALSE}
+fdr <- 0.1
+fc <- 1
+
+plot_nolim <- myMAplot(dds_ccs_results, fdr = fdr, fc = fc)
+ggsave(plot = plot_nolim, path ='plots', filename = paste0("CCS_only_ma_noLim", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot_nolim, path ='plots/pdf', filename = paste0("CCS_only_ma_noLim", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+
+plot_lim2 <- myMAplot_lim(dds_ccs_results, fdr = fdr, fc = fc, ylim = c(-2, 2))
+ggsave(plot = plot_lim2, path ='plots', filename = paste0("CCS_only_ma_lim2", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot_lim2, path ='plots/pdf', filename = paste0("CCS_only_ma_lim2", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+
+plot_lim4 <- myMAplot_lim(dds_ccs_results, fdr = fdr, fc = fc, ylim = c(-4, 4))
+ggsave(plot = plot_lim4, path ='plots', filename = paste0("CCS_only_ma_lim4", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot_lim4, path ='plots/pdf', filename = paste0("CCS_only_ma_lim4", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+
+plot_lim7 <- myMAplot_lim(dds_ccs_results, fdr = fdr, fc = fc, ylim = c(-7, 7))
+ggsave(plot = plot_lim7, path ='plots', filename = paste0("CCS_only_ma_lim7", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot_lim7, path ='plots/pdf', filename = paste0("CCS_only_ma_lim7", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+
+plot <- ggarrange(plot_nolim, plot_lim2, plot_lim4, plot_lim7, labels = c("no lim", "lim 2", "lim 4", "lim 7"), ncol = 2, nrow = 2)
+rm(plot_nolim, plot_lim2, plot_lim4, plot_lim7)
+plot
+```
+
+
+Next, we show a heatmap focusing only on the top 20, 50 and 100 differentially expressed genes having the smallest p-values from the above list.
+
+```{r, warning=FALSE, message=FALSE}
+top_20 <- dds_ccs_counts[rownames(dds_ccs_results)[1:20],]
+rownames(top_20) <- dds_ccs_results$hgnc_symbol[1:20]
+plot <- pheatmap(top_20,
+                 fontsize_col = 7,
+                 fontsize_row = 10,
+                 color = colorRampPalette(c("blue", "red"))(50), 
+                 border_color = NA,
+                 annotation_colors = list(`Platelet type` = c(RPs = cbbPalette[1], MPs = cbbPalette[4])),
+                 annotation_col = metadata_ccs %>% dplyr::select(`Platelet type` = RPs_MPs),
+                 show_rownames = TRUE, 
+                 show_colnames = TRUE, 
+                 scale="row")
+rm(top_20)
+
+ggsave(plot = plot, path ='plots', filename = paste0("CCS_only_heatmap_top20", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot, path ='plots/pdf', filename = paste0("CCS_only_heatmap_top20", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+plot
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+top_50 <- dds_ccs_counts[rownames(dds_ccs_results)[1:50],]
+rownames(top_50) <- dds_ccs_results$hgnc_symbol[1:50]
+plot <- pheatmap(top_50,
+                 fontsize_col = 7,
+                 fontsize_row = 7,
+                 color = colorRampPalette(c("blue", "red"))(50), 
+                 border_color = NA,
+                 annotation_colors = list(`Platelet type` = c(RPs = cbbPalette[1], MPs = cbbPalette[4])),
+                 annotation_col = metadata_ccs %>% dplyr::select(`Platelet type` = RPs_MPs),
+                 show_rownames = TRUE, 
+                 show_colnames = TRUE, 
+                 scale="row")
+rm(top_50)
+
+ggsave(plot = plot, path ='plots', filename = paste0("CCS_only_heatmap_top50", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot, path ='plots/pdf', filename = paste0("CCS_only_heatmap_top50", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+plot
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+top_100 <- dds_ccs_counts[rownames(dds_ccs_results)[1:100],]
+rownames(top_100) <- dds_ccs_results$hgnc_symbol[1:100]
+plot <- pheatmap(top_100,
+                 fontsize_col = 7,
+                 fontsize_row = 4,
+                 color = colorRampPalette(c("blue", "red"))(50), 
+                 border_color = NA,
+                 annotation_colors = list(`Platelet type` = c(RPs = cbbPalette[1], MPs = cbbPalette[4])),
+                 annotation_col = metadata_ccs %>% dplyr::select(`Platelet type` = RPs_MPs),
+                 show_rownames = TRUE, 
+                 show_colnames = TRUE, 
+                 scale="row")
+rm(top_100)
+
+ggsave(plot = plot, path ='plots', filename = paste0("CCS_only_heatmap_top100", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot, path ='plots/pdf', filename = paste0("CCS_only_heatmap_top100", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+plot
+```
+
+
+Here, the samples are colored by platelet type and labeled by patient.
+
+```{r, warning=FALSE, message= FALSE}
+plot <- myPCAplot(vst(dds_ccs), intgroup = "RPs_MPs") + 
+          geom_label_repel(aes(label=colnames(dds_ccs)), size = 2, show.legend = FALSE)
+
+ggsave(plot = plot, path ='plots', filename = paste0("CCS_only_pca_RPvsMP", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot, path ='plots/pdf', filename = paste0("CCS_only_pca_RPvsMP", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+plot
+```
+
+
+In this PCA plot, the samples are colored by patient and labeled by platelet type. The variance is better explained by patient rather than by platelet type.
+```{r, warning=FALSE, message= FALSE}
+plot <- myPCAplot(vst(dds_ccs), intgroup = c("patient")) + 
+          geom_label_repel(aes(label=RPs_MPs), size = 2) + 
+          theme(legend.position="none")
+
+ggsave(plot = plot, path ='plots', filename = paste0("CCS_only_pca_patiens", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot, path ='plots/pdf', filename = paste0("CCS_only_pca_patiens", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+plot
+```
+
+
+## Differentially expressed genes in CCS
+Below we list the significant differentially expressed genes between RPs and MPs when matching patients. (abs(log2FC) > 1, padj < 0.1)
+
+```{r, warning=FALSE, message= FALSE}
+FCcutoff <- 1
+pCutoff <- 0.1
+write.table(rownames(dds_ccs_results), paste0("../data/GO_analysis/reference_genes_ccs_only", version, ".txt"),
+            sep = ",", quote = FALSE, row.names = FALSE, col.names = FALSE)
+
+upregulated_genes <- dds_ccs_results %>%
+  filter(log2FoldChange > FCcutoff, padj < pCutoff) %>%
+  arrange(padj)
+write.table(rownames(upregulated_genes), 
+            paste0("../data/GO_analysis/sign_upregulated_genes_padj", pCutoff, "_ccs_only", version, ".txt"), 
+            sep = ",", quote = FALSE, row.names = FALSE, col.names = FALSE)
+
+downregulated_genes <- dds_ccs_results %>%
+  filter(log2FoldChange < -FCcutoff, padj < pCutoff) %>%
+  arrange(padj)
+write.table(rownames(downregulated_genes), 
+            paste0("../data/GO_analysis/sign_downregulated_genes_padj", pCutoff, "_ccs_only", version, ".txt"), 
+            sep = ",", quote = FALSE, row.names = FALSE, col.names = FALSE)
+
+dds_ccs_sign_results <- dds_ccs_results %>% 
+  tibble::rownames_to_column() %>% 
+  filter(abs(log2FoldChange) > FCcutoff, padj < pCutoff) %>%
+  arrange(padj)
+#write.xlsx2(dds_ccs_sign_results, paste0("results/ccs_rp_vs_mp_sign_diff_padj_", pCutoff, "_gene_counts", version, ".xlsx"), row.names = F)
+DT::datatable(dds_ccs_sign_results)
+```
+
+
+Volcano plot of the significant differences, here filtered for log2 FC +-1 and p-adj < 1e-15.
+
+```{r warning=FALSE, message=FALSE}
+FCcutoff <- 1
+pCutoff <- 1e-15
+
+upregulated_genes <- dds_ccs_results[dds_ccs_results$log2FoldChange > FCcutoff & dds_ccs_results$padj < pCutoff, ]
+upregulated_genes <- upregulated_genes[order(upregulated_genes$padj, decreasing = FALSE), ]
+write.table(rownames(upregulated_genes), 
+            paste0("../data/GO_analysis/sign_upregulated_genes_padj", pCutoff, "_ccs_only", version, ".txt"), 
+            sep = ",", quote = FALSE, row.names = FALSE, col.names = FALSE)
+
+downregulated_genes <- dds_ccs_results[dds_ccs_results$log2FoldChange < -FCcutoff & dds_ccs_results$padj < pCutoff, ]
+downregulated_genes <- downregulated_genes[order(downregulated_genes$padj, decreasing = FALSE), ]
+write.table(rownames(downregulated_genes), 
+            paste0("../data/GO_analysis/sign_downregulated_genes_padj", pCutoff, "_ccs_only", version, ".txt"), 
+            sep = ",", quote = FALSE, row.names = FALSE, col.names = FALSE)
+
+
+labs_of_interest <- c("GP6", "PEAR1", "VWF", "PKN2", "LUC7L3", "PARN", "ORAI2", "STIM1", "TBXA2R",
+                                "F2RL3", "P2RX1", "GP5", "ITGA5", "GPVI", "PEAR")
+
+cat(paste0("Number of IDs of interest in current data: ", length(labs_of_interest[labs_of_interest %in% dds_ccs_results$hgnc_symbol]), "\nList of detected IDs of interes: "))
+cat(labs_of_interest[labs_of_interest %in% dds_ccs_results$hgnc_symbol])
+```
+
+
+```{r warning=FALSE, message=FALSE}
+plot <- myVolcanoPlot(dds_ccs_results,
+                      data_type = "gene",
+                      pCutoff = pCutoff,
+                      FCcutoff = FCcutoff,
+                      xlim = c(-6, 6),
+                      lab_selection = labs_of_interest)
+
+ggsave(plot = plot, path ='plots', filename = paste0("CCS_only_volcano_geneset", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot, path ='plots/pdf', filename = paste0("CCS_only_volcano_geneset", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+plot
+```
+
+
+```{r warning=FALSE, message=FALSE}
+regulated_labs_of_interest <- labs_of_interest[labs_of_interest %in% c(upregulated_genes$hgnc_symbol, downregulated_genes$hgnc_symbol)]
+
+cat(paste0("Number of regulated IDs of interest in current data: ", length(regulated_labs_of_interest), "\nList of detected IDs of interes: "))
+cat(regulated_labs_of_interest)
+```
+
+
+```{r warning=FALSE, message=FALSE}
+plot <- myVolcanoPlot(dds_ccs_results,
+                      data_type = "gene",
+                      pCutoff = pCutoff,
+                      FCcutoff = FCcutoff,
+                      xlim = c(-6, 6),
+                      lab_selection = regulated_labs_of_interest)
+
+ggsave(plot = plot, path ='plots', filename = paste0("CCS_only_volcano_regGeneset", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot, path ='plots/pdf', filename = paste0("CCS_only_volcano_regGeneset", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+plot
+```
+
+
+```{r warning=FALSE, message=FALSE}
+top_10_upregulated_without_labs_of_interest <- as.character(upregulated_genes[!(upregulated_genes$hgnc_symbol %in% labs_of_interest),"hgnc_symbol"])[1:10]
+plot <- myVolcanoPlot(dds_ccs_results,
+                      data_type = "gene",
+                      pCutoff = pCutoff,
+                      FCcutoff = FCcutoff,
+                      xlim = c(-6, 6),
+                      lab_selection = c(regulated_labs_of_interest, top_10_upregulated_without_labs_of_interest))
+
+ggsave(plot = plot, path ='plots', filename = paste0("CCS_only_volcano_regGenset_top10upreg", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot, path ='plots/pdf', filename = paste0("CCS_only_volcano_regGenset_top10upreg", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+plot
+```
+
+
+```{r warning=FALSE, message=FALSE}
+top_10_downregulated_without_labs_of_interest <- as.character(downregulated_genes[!(downregulated_genes$hgnc_symbol %in% labs_of_interest),"hgnc_symbol"])[1:10]
+
+plot <- myVolcanoPlot(dds_ccs_results,
+                      data_type = "gene",
+                      pCutoff = pCutoff,
+                      FCcutoff = FCcutoff,
+                      xlim = c(-6, 6),
+                      lab_selection = c(regulated_labs_of_interest,
+                                        top_10_downregulated_without_labs_of_interest))
+
+ggsave(plot = plot, path ='plots', filename = paste0("CCS_only_volcano_regGenset_top10downreg", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot, path ='plots/pdf', filename = paste0("CCS_only_volcano_regGenset_top10downreg", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+plot
+```
+
+
+```{r warning=FALSE, message=FALSE}
+plot <- myVolcanoPlot(dds_ccs_results,
+                      data_type = "gene",
+                      pCutoff = pCutoff,
+                      FCcutoff = FCcutoff,
+                      xlim = c(-6, 6),
+                      lab_selection = c(regulated_labs_of_interest, top_10_upregulated_without_labs_of_interest,
+                                        top_10_downregulated_without_labs_of_interest))
+
+ggsave(plot = plot, path ='plots', filename = paste0("CCS_only_volcano_regGenset_top10up&downreg", version, ".png"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='png')
+ggsave(plot = plot, path ='plots/pdf', filename = paste0("CCS_only_volcano_regGenset_top10up&downreg", version, ".pdf"),
+       width = plot_width, height = plot_height, dpi = plot_res, units = "in", device='pdf')
+plot
+```
+
+
+## Gene onthology analysis
+The following interactive plot shows the classes of genes that are over-represented in the list of significant differentially expressed genes in CCS samples (RPs vs MPs paired by patient).
+
+```{r warning=FALSE, message=FALSE}
+#test
+padj <- padj_thresholds <- 0.01
+count <- count_thresholds <- 5
+fdr <- fdr_thresholds <- 0.2
+
+
+gos_of_interest <- c("platelet", "hemostasis", "coagulation")
+#padj_thresholds <- c(0.1, 0.01, 0.05, 1e-15)
+#count_thresholds <- c(2, 5, 10, 12, 15, 20)
+#fdr_thresholds <- c(0.01, 0.05, 0.1, 0.2, 0.5, 0.75, 1)
+
+for(padj in padj_thresholds){
+  panther_result_up_ref <- fread(paste0("../data/GO_analysis/padj", padj, 
+                                    "/Panther_upregulatedGenes_ReferenceBackground_padj", padj, ".txt"))
+  panther_result_down_ref <- fread(paste0("../data/GO_analysis/padj", padj,
+                                      "/Panther_downregulatedGenes_ReferenceBackground_padj", padj, ".txt"))
+  panther_result_up_human <- fread(paste0("../data/GO_analysis/padj", padj, 
+                                    "/Panther_upregulatedGenes_HumanBackground_padj", padj, ".txt"))
+  panther_result_down_human <- fread(paste0("../data/GO_analysis/padj", padj,
+                                      "/Panther_downregulatedGenes_HumanBackground_padj", padj, ".txt"))
+  
+  
+  for(count in count_thresholds){
+    for(fdr in fdr_thresholds){
+      print(paste0("padj", padj, "_count", count, "_fdr", fdr))
+      plot_ref <- myGObarplot(panther_result_up = panther_result_up_ref, 
+                              panther_result_down = panther_result_down_ref, 
+                              count_threshold = count, 
+                              fdr_threshold = fdr,
+                              padj_threshold = padj,
+                              gos_of_interest = gos_of_interest,
+                              background = "Reference genes")
+      plot_human <- myGObarplot(panther_result_up = panther_result_up_human, 
+                                panther_result_down = panther_result_down_human, 
+                                count_threshold = count, 
+                                fdr_threshold = fdr,
+                                padj_threshold = padj,
+                                gos_of_interest = gos_of_interest,
+                                background = "All human genes")
+      plot <- ggarrange(plot_ref, plot_human, ncol = 1, nrow = 2)
+      ggsave(plot = plot, path = paste0("plots/padj", padj), 
+             filename = paste0("CCS_only_GOanalysis_padj", padj, "_count", count, "_fdr", fdr, version, ".png"),
+             width = plot_width*3, height = plot_height*2, dpi = plot_res, units = "in", device='png')
+    }
+  }
+}
+
+```
+
+
+
+
+# R session
+```{r}
+sessionInfo()
+```
