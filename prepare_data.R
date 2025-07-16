@@ -13,8 +13,8 @@ path_to_data <- "/nfs/data/Bongiovanni-KrdIsar-platelets/Cyanus_RPsMPs/data/"
 
 out_path <- "/nfs/data/Bongiovanni-KrdIsar-platelets/Cyanus_RPsMPs/data/sce_objects/"
 
-#analysis_state <- "baseline" 
-analysis_state <- "stimulated" 
+analysis_state <- "baseline" 
+#analysis_state <- "stimulated" 
 
 
 ######## Read Original Data ########
@@ -25,7 +25,7 @@ panel <- rbind(panel, data.table(fcs_colname = c("Ir191Di", "Ir193Di"), antigen 
 
 # built meta data file
 
-files <- list.files(file.path(path_to_data, paste0("CCS_", analysis_state)), pattern = ".fcs")
+files <- list.files(file.path(path_to_data, paste0("CCS_", analysis_state, "_CD45_exclusion")), pattern = ".fcs") # changed data
 md <- data.table(file_name = files)
 md$sample_id <- sapply(strsplit(md$file_name,"[.]"), "[", 1)
 md$sample_id <- str_replace(md$sample_id, "_platlet_specific", "")
@@ -35,7 +35,7 @@ md$patient_id <- sapply(strsplit(md$sample_id,"_"), "[", 1)
 md$stimulation <- substr(md$patient_id, nchar(md$patient_id), nchar(md$patient_id))
 md$patient_id <- substr(md$patient_id, 1, nchar(md$patient_id)-1)
 
-sce <- prepData(file.path(path_to_data, paste0("CCS_", analysis_state)), 
+sce <- prepData(file.path(path_to_data, paste0("CCS_", analysis_state,  "_CD45_exclusion")), 
                 panel, 
                 md, 
                 transform = TRUE,

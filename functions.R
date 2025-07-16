@@ -28,18 +28,18 @@ paired_boxes <- function(sce, title, out_path) {
   colnames(df_medians) <- c('patient_id', 'group', 'marker', 'Expression')
   df_medians[, patient_id := as.factor(patient_id)]
   
-  t_test <- df_medians[, t.test(Expression ~ group, paired = T)$p.value, by = marker]
-  colnames(t_test) <- c("Marker", "p.value")
-  t_test[, p.adj := p.adjust(p.value, method = "bonferroni")]
-  t_test[, signif := ifelse(p.adj < 0.001, '***', ifelse(p.adj < 0.05, '**', ifelse(p.adj < 0.1, '*', '')))]
-  t_test[is.na(t_test)] <- ''
+  test <- df_medians[, wilcox.test(Expression ~ group, paired = T)$p.value, by = marker]
+  colnames(test) <- c("Marker", "p.value")
+  test[, p.adj := p.adjust(p.value, method = "bonferroni")]
+  test[, signif := ifelse(p.adj < 0.001, '***', ifelse(p.adj < 0.05, '**', ifelse(p.adj < 0.1, '*', '')))]
+  test[is.na(test)] <- ''
   
   eff_size <- effectSize(makeSampleSelection(sce, deselected_samples = ei(sce)[ei(sce)$type == 'rest', 'sample_id']), condition='type', group='patient_id')
   eff_size[, Marker := tstrsplit(group1, '::', keep=1)]
   eff_size <- dcast(eff_size, Marker ~ overall_group, value.var = c('effsize', 'magnitude'))
-  t_test <- merge(t_test, eff_size, by = 'Marker')[order(p.adj)]
+  test <- merge(test, eff_size, by = 'Marker')[order(p.adj)]
 
-  df_medians <- merge(df_medians, t_test, by.x = 'marker', by.y = 'Marker')
+  df_medians <- merge(df_medians, test, by.x = 'marker', by.y = 'Marker')
   df_medians[, marker_title := paste(marker, signif)]
   fwrite(df_medians, out_path)
   return(df_medians)

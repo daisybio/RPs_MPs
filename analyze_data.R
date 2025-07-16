@@ -19,7 +19,8 @@ suppressMessages({
 
 path_to_data <- "/nfs/data/Bongiovanni-KrdIsar-platelets/Cyanus_RPsMPs/data/sce_objects"
 
-analysis_state <- "baseline" # or "stimulated"
+#analysis_state <- "baseline" # or "stimulated"
+analysis_state <- "stimulated" 
 
 
 # For reproducibility
@@ -142,6 +143,17 @@ violins_original <- ggplot(df[signif != ""], aes(x = group, y = Expression, colo
   theme(legend.position = 'none', axis.title.x=element_blank(), axis.text.x = element_blank(), strip.text.x = element_text(face = "bold"))
 ggsave(paste0("plots/paired_boxes_", analysis_state, "_original.png"), width = 12, height = 4, dpi = 300)
 
+violins_original_y <- ggplot(df[signif != ""], aes(x = group, y = Expression, color = group, fill = group))+
+  geom_violin(alpha = 0.3)+
+  geom_point()+
+  geom_line(aes(group = patient_id), color = '#C4C4C4')+
+  scale_color_manual(values = c("MP" = "#009ADE", "RP" = "#FF1F5B"))+
+  scale_fill_manual(values = c("MP" = "#009ADE", "RP" = "#FF1F5B"))+
+  facet_wrap(~marker_title, scales = 'free_x', ncol = 8)+
+  theme_minimal()+
+  theme(legend.position = 'none', axis.title.x=element_blank(), axis.text.x = element_blank(), strip.text.x = element_text(face = "bold"))
+ggsave(paste0("plots/paired_boxes_", analysis_state, "_original_no_free_y.png"), width = 12, height = 4, dpi = 300)
+
 
 
 # Normalized by size
@@ -159,6 +171,17 @@ violins_CD42b <- ggplot(df[signif != ""], aes(x = group, y = Expression, color =
   theme(legend.position = 'none', axis.title.x=element_blank(), axis.text.x = element_blank(), strip.text.x = element_text(face = "bold"))
 ggsave(paste0("plots/paired_boxes_", analysis_state, "_CD42b.png"), width = 6, height = 5, dpi = 300)
 
+violins_CD42b_y <- ggplot(df[signif != ""], aes(x = group, y = Expression, color = group, fill = group))+
+  geom_violin(alpha = 0.3)+
+  geom_point()+
+  geom_line(aes(group = patient_id), color = '#C4C4C4')+
+  scale_color_manual(values = c("MP" = "#009ADE", "RP" = "#FF1F5B"))+
+  scale_fill_manual(values = c("MP" = "#009ADE", "RP" = "#FF1F5B"))+
+  facet_wrap(~marker_title, scales = 'free_x', ncol = 4)+
+  theme_minimal()+
+  theme(legend.position = 'none', axis.title.x=element_blank(), axis.text.x = element_blank(), strip.text.x = element_text(face = "bold"))
+ggsave(paste0("plots/paired_boxes_", analysis_state, "_CD42b_no_free_y.png"), width = 6, height = 5, dpi = 300)
+
 
 # Normalized by RNA
 df_medians_DNA2 <- paired_boxes(sce_DNA2, 'DNA2', paste0("tables/median_table_with_paired_results_", analysis_state, "_DNA2.csv"))
@@ -174,6 +197,17 @@ violins_DNA2 <- ggplot(df[signif != ""], aes(x = group, y = Expression, color = 
   theme_minimal()+
   theme(legend.position = 'none', axis.title.x=element_blank(), axis.text.x = element_blank(), strip.text.x = element_text(face = "bold"))
 ggsave(paste0("plots/paired_boxes_", analysis_state, "_DNA2.png"), width = 6, height = 5, dpi = 300)
+
+violins_DNA2_y <- ggplot(df[signif != ""], aes(x = group, y = Expression, color = group, fill = group))+
+  geom_violin(alpha = 0.3)+
+  geom_point()+
+  geom_line(aes(group = patient_id), color = '#C4C4C4')+
+  scale_color_manual(values = c("MP" = "#009ADE", "RP" = "#FF1F5B"))+
+  scale_fill_manual(values = c("MP" = "#009ADE", "RP" = "#FF1F5B"))+
+  facet_wrap(~marker_title, scales = 'free_x', ncol = 4)+
+  theme_minimal()+
+  theme(legend.position = 'none', axis.title.x=element_blank(), axis.text.x = element_blank(), strip.text.x = element_text(face = "bold"))
+ggsave(paste0("plots/paired_boxes_", analysis_state, "_DNA2_no_free_y.png"), width = 6, height = 5, dpi = 300)
 
 
 # Overall Figure
