@@ -18,18 +18,36 @@ subset_sce <- function(sce, coldata_column, coldata_value){
 
 ######## ----------------- Functions for Correlation ----------------- ########
 
-paired_boxes <- function(sce, title, out_path) {
+paired_boxes <- function(sce, title, out_path, method = "sign.test") {
   df <- as.data.table(t(assays(sce)$exprs))
   df[, group := colData(sce)$type]
   df[, patient_id := colData(sce)$patient_id]
   
   df <- melt(df, id.vars = c('group', 'patient_id'), variable.name = 'marker', value.name = 'expression')
+  
   df_medians <- df[!group == 'rest', median(expression), by=c("patient_id", "group", "marker")]
+  
   colnames(df_medians) <- c('patient_id', 'group', 'marker', 'Expression')
+  
   df_medians[, patient_id := as.factor(patient_id)]
   
-  test <- df_medians[, wilcox.test(Expression ~ group, paired = T)$p.value, by = marker]
+  if(method == "wilcoxon"){
+    test <- df_medians[, wilcox.test(Expression ~ group, paired = T)$p.value, by = marker]
+  } else if(method == "sign.test"){
+    test <- df_medians[, {
+      wide <- dcast(.SD, patient_id ~ group, value.var = "Expression")
+      if (all(is.na(wide))) {
+        pval <- NA
+      } else {
+        st <- SIGN.test(wide[[ "MP" ]], wide[[ "RP" ]], alternative = "two.sided")
+        pval <- st$p.value
+      }
+      .(p.value = pval)
+    }, by = marker]
+  }
+  
   colnames(test) <- c("Marker", "p.value")
+  
   test[, p.adj := p.adjust(p.value, method = "bonferroni")]
   test[, signif := ifelse(p.adj < 0.001, '***', ifelse(p.adj < 0.05, '**', ifelse(p.adj < 0.1, '*', '')))]
   test[is.na(test)] <- ''
